@@ -10,12 +10,10 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
-#include <iostream>
-#include <iomanip>
+#include <ostream>
 #include <unordered_map>
 #include <ctime>
 #include <cmath>
-#include <algorithm>
 
 #include "lib/data/vec.hpp"
 #include "lib/component/timer.hpp"
@@ -29,24 +27,26 @@
 namespace fcpp
 {
 
+//! @brief struct representing a single track point from a GPX file
+struct track_point {
+    double x;
+    double y;
+    double z;
+
+    times_t timestamp;
+};
+
+//! @brief GPS track with index for navigation
+struct track_data {
+    std::vector<track_point> track;
+    int index;
+};
+
 /**
  * @brief Class handling
  */
-class gps_trace
-{
+class gps_trace {
 public: // visible by net objects and the main program
-    struct track_point
-    {
-        double x;
-        double y;
-        times_t timestamp;
-    };
-
-    struct track_data {
-        std::vector<track_point> track;
-        int index;
-    };
-
     gps_trace() = default;
 
     /**
@@ -58,7 +58,7 @@ public: // visible by net objects and the main program
      * @param ref_time Time offset for track timestamps.
      * @param uid Uid of the node that will follow the track.
      */
-    gps_trace(const std::string &src_gpx_file, const double ref_lat, const double ref_lon, const time_t ref_time);
+    gps_trace(const std::string &src_gpx_file, const double ref_lat, const double ref_lon, const double ref_ele, const time_t ref_time);
 
     /**
      * @brief conversion of a geographic coordinates to projected coordinates using equirectangular projection
@@ -84,17 +84,18 @@ public: // visible by net objects and the main program
 
     template <typename node_t>
     bool follow_track(node_t &node, trace_t call_point) {
+        
         auto t = tracks.find(node.uid);
 
-        if (t == tracks.end()) { return false; /* No track found for the current node */ }
+        if (t == tracks.end()) { return false; } //track not found for current node
 
         track_data& td = t->second;
 
-        if (td.index >= td.track.size() - 1) { return false; }
+        if (td.index >= td.track.size() - 1) { return false; } // track finished
 
         track_point target = next_point(td, node.current_time());
 
-        vec<2> direction = make_vec(target.x, target.y) - node.position();
+        vec<3> direction = make_vec(target.x, target.y, target.z) - node.position();
 
         // calculate magnitude (distance)
         double distance = std::sqrt(std::pow(direction[0], 2) + std::pow(direction[1], 2));

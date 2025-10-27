@@ -5,8 +5,7 @@
 namespace fcpp
 {
 
-gps_trace::gps_trace(const std::string &src_gpx_file, const double ref_lat, const double ref_lon, const time_t ref_time) {
-    std::cout << "gps_trace constructor - 1" << std::endl;
+gps_trace::gps_trace(const std::string &src_gpx_file, const double ref_lat, const double ref_lon, const double ref_ele, const time_t ref_time) {
     std::ifstream file(src_gpx_file);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open GPX file: " + src_gpx_file);
@@ -20,6 +19,7 @@ gps_trace::gps_trace(const std::string &src_gpx_file, const double ref_lat, cons
 
     time_t start_time = 0.0;
     device_t track_id = 0;
+    double gps_lat, gps_lon;
     vec<2> pos;
 
     try {
@@ -47,11 +47,13 @@ gps_trace::gps_trace(const std::string &src_gpx_file, const double ref_lat, cons
 
                     rapidxml::xml_attribute<> *lat = trkpt_node->first_attribute("lat");
                     rapidxml::xml_attribute<> *lon = trkpt_node->first_attribute("lon");
+
+                    rapidxml::xml_node<> *ele_node = trkpt_node->first_node("ele");
                     rapidxml::xml_node<> *time_node = trkpt_node->first_node("time");
 
                     if (lat && lon && time_node) {
-                        double gps_lat = std::stod(lat->value());
-                        double gps_lon = std::stod(lon->value());
+                        gps_lat = std::stod(lat->value());
+                        gps_lon = std::stod(lon->value());
 
                         if (track.empty()) { // first node entered
                             start_time = parse_times_t(time_node->value());
@@ -63,6 +65,12 @@ gps_trace::gps_trace(const std::string &src_gpx_file, const double ref_lat, cons
                         point.x = pos[0];
                         point.y = pos[1];
                         point.timestamp = parse_times_t(time_node->value()) - start_time + ref_time;
+
+                        if(ele_node) {
+                            point.z = std::stod(ele_node->value()) - ref_ele;
+                        } else {
+                            point.z = 0.0;
+                        }
 
                         track.push_back(point);
                     }
@@ -109,7 +117,7 @@ times_t gps_trace::parse_times_t(const std::string &string) {
     return mktime(&tm);
 }
 
-gps_trace::track_point gps_trace::next_point(track_data& td, fcpp::times_t time) {
+track_point gps_trace::next_point(track_data& td, fcpp::times_t time) {
     track_point& tp = td.track[td.index];
 
     if(tp.timestamp < time && td.index < td.track.size() - 1) {
